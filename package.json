@@ -1,12 +1,9 @@
 {
   "name": "magpie-workbuddy-growth",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "magpie 插件：WorkBuddy 国内版成长计划与任务签到管家（成长计划任务树一键点亮 / 任务签到领取积分 / 猫猫旅行 / 连登补签兑换抽奖 / 每日活跃 / 开学季）。账号自动读取 workbuddy 插件的登录态，无需重复登录。",
   "type": "module",
   "main": "index.mjs",
-  "exports": {
-    ".": "./index.mjs"
-  },
   "files": [
     "index.mjs",
     "growth.mjs",
@@ -40,5 +37,10 @@
   "homepage": "https://github.com/connoryang331/magpie-workbuddy-growth#readme",
   "bugs": {
     "url": "https://github.com/connoryang331/magpie-workbuddy-growth/issues"
+  },
+  "pi": {
+    "extensions": [
+      "./index.mjs"
+    ]
   }
 }

@@ -134,3 +134,6 @@ export const WorkbuddyGrowthPlugin = async () => {
 
 /** 测试辅助（magpie 不会把它当插件调用）。 */
 export const _internal = { diskAccounts, PLUGIN_ID }
+
+export default WorkbuddyGrowthPlugin
+
