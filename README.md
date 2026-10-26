@@ -1,46 +1,37 @@
 # magpie-workbuddy-growth
 
-WorkBuddy 国内版成长中心管家（magpie 独立插件）。
+WorkBuddy 国内版成长计划与任务签到管家（magpie 插件）。
 
-- **任务树**：自动接任务 → 上报判据事件（桌面 6 连对话链 / Buddy 五连 /
-  小程序任务 / 灵感库点击 / 画布·模板·专家·团队·技能·自动化·皮肤·和平精英皮肤）
-  → 领取积分能量。黑猫任务只在 23:00–08:00（北京时间）跑，真实捐款类任务不碰。
-- **猫猫旅行**：无猫→领养（每日防抖）→ 空闲→派出（古镇客栈）→ 到达→领奖，
-  每次调用只推进一步。
-- **连登**：昨日漏签且有补签卡→补签；7d/14d/28d 档位可兑换→兑换；有抽奖次数→抽奖（≤20 发）。
-- **每日活跃**：上报一条 chat 事件点亮成长中心连登（与签到连签是两套系统）。
-- **开学季**：viewed 激活 → 分享/小程序对话/专家使用/桌面 6 连判据 → 领奖 → 大转盘抽奖。
+- 成长计划任务树一键点亮、任务签到领取积分
+- 猫猫旅行（领养 / 派出 / 到达领奖，每日一轮）
+- 连登补签、档位兑换、连登抽奖
+- 每日活跃上报（点亮成长中心连登）
+- 开学季活动（任务点亮 + 转盘抽奖）
 
-## 安装
+## 安装（两步）
 
-在 magpie 的「发现」页搜索「成长计划」或「任务签到」即可安装；
-或命令行：
+发现页搜索「成长计划 / 任务签到 / workbuddy」找到本包安装后，再安装工具实体包：
 
-```
-magpie plugin add magpie-workbuddy-growth
+```bash
+magpie plugin add npm:magpie-workbuddy-growth-core
 ```
 
-## 账号来源
-
-运行时从 `%USERPROFILE%\.config\magpie\plugin-auth.json` 读取
-`@magpie-community/opencode-workbuddy-auth` 的登录态（国内个人账号：
-无 `enterpriseId`），因此**无需重复登录**，且社区插件更新不影响本插件。
+> 为什么两步：magpie 对带 `pi-package` 关键词的包按 pi 扩展路径加载（只装配模型 provider，不装配工具）。
+> 本包负责被发现页搜到；`magpie-workbuddy-growth-core` 提供真正的 `wb_growth` 工具。
+> 也可以只装工具包：`magpie plugin add npm:magpie-workbuddy-growth-core`（不占用发现页条目）。
 
 ## 使用
 
-magpie 对话里调用工具 `wb_growth`：
+安装后对 agent 说：
 
-- `action=status`：只读盘点（任务树/能量/连登/旅行/开学季）
-- `action=task`：任务树点亮+领取（`code` 指定单个任务）
-- `action=travel` / `action=streak` / `action=daily`
-- `action=school`（`lottery:true` 顺带抽奖；`only` 指定任务）
-- `uid`：只对 uid 前缀匹配的账号执行
+- 「看看我的成长计划」→ wb_growth {action:"status"}
+- 「把成长任务点亮领奖」→ wb_growth {action:"tasks", mode:"full"}
+- 「猫猫旅行」→ wb_growth {action:"travel"}
+- 「连登补签、兑换、抽奖」→ wb_growth {action:"streak"}
+- 「开学季任务」→ wb_growth {action:"school", lottery:true}
+- 「只领 X 任务的奖」→ wb_growth {action:"tasks", mode:"claim", code:"..."}
 
-每日自动签到：跟随 magpie 自身的签到调度（社区插件的 `checkin` 钩子）；
-`daily.mjs` 仅作手动全量补跑的备用品（`bun daily.mjs`），不挂任何定时器。
+账号读取 `@magpie-community/opencode-workbuddy-auth` 的登录态（需已登录 WorkBuddy 国内版）。
+企业号自动跳过（成长体系仅个人账号）。
 
-## 文件
-
-- `growth.mjs`：成长体系全部实现（请求层/事件层/任务树/旅行/连登/开学季/签到链）
-- `index.mjs`：插件入口（`wb_growth` 工具）
-- `daily.mjs`：手动 CLI（可选）
+源码：https://github.com/connoryang331/magpie-workbuddy-growth

@@ -1,0 +1,11 @@
+{
+  "name": "magpie-workbuddy-growth-core",
+  "version": "1.0.0",
+  "description": "WorkBuddy 国内版成长计划工具插件（wb_growth：成长计划任务树一键点亮 / 任务签到领取积分 / 猫猫旅行 / 连登补签兑换抽奖 / 每日活跃 / 开学季）。本包是 magpie-workbuddy-growth 的工具实体包，请配合入口包使用。",
+  "type": "module",
+  "main": "index.mjs",
+  "files": ["index.mjs", "growth.mjs", "daily.mjs", "README.md"],
+  "keywords": ["magpie", "magpie-plugin", "opencode", "opencode-plugin", "workbuddy", "codebuddy", "成长计划", "任务签到", "签到", "猫猫旅行", "连登", "开学季", "积分", "growth", "checkin"],
+  "license": "MIT",
+  "repository": { "type": "git", "url": "git+https://github.com/connoryang331/magpie-workbuddy-growth.git", "directory": "core" }
+}
