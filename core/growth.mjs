@@ -23,6 +23,10 @@ const SCHOOL_EXPERT_CATEGORY = "16-BackToSchool";
 const ACCOUNT_GAP_MS = 800;
 const MAX_DRAWS = 20;
 const TRAVEL_LOCATION_ID = 4;
+// template_5 桌面口径的固定模板（workbuddy2api-panel 实测：模板 1–5 各发一组事件即点亮）
+const TEMPLATES = [
+  ["1", "深度研究"], ["2", "周报生成"], ["3", "竞品分析"], ["4", "活动策划"], ["5", "代码评审"],
+];
 const TRAVEL_MARKER = "first_buddy task not completed";
 const NIGHT_MARKER_START = 23;
 const NIGHT_MARKER_END = 8;
@@ -39,6 +43,15 @@ const DEFAULT_EXPERT_IDS = [
   "ContentCreator", "UiDesigner", "DataAnalyticsReporter", "ChinaEcommerceOperationsExpert",
   "DouyinStrategist", "SalesCoach", "BrandGuardian", "XiaohongshuOperationsExpert",
 ];
+// 「体验某专家」类任务：专家 id 取自任务 jump_url（workbuddy2api-panel 实测）。
+// name 用专家昵称、expertTitle 用职业名——服务端两个都校验，不能互换。
+const EXPERIENCE_EXPERTS = {
+  expert_use_maidehao: { id: "ex_GDl31WahyIH0", name: "卖得好", title: "中国电商运营专家" },
+  expert_use_douyinyin: { id: "ex_FbY5nlWTqDod", name: "斗音音", title: "抖音策略师" },
+  expert_use_shangjia_xuanchuan: { id: "ex_Weo3x2EZuSDm", name: "商家宣传设计师", title: "商家宣传页与海报设计师" },
+  expert_use_bowangwang: { id: "ex_WZY136wV5aMt", name: "播旺旺", title: "直播电商教练" },
+  WorkBuddy_Valorant: { id: "ex_xQHHD1u5Jkua", name: "无畏契约拼豆专家", title: "无畏契约拼豆专家" },
+};
 const DEFAULT_TEAM_IDS = [
   "CloudOpsTeam", "SoftwareCompany", "TradingAgentTeam", "GPTResearcherTeam", "MarketingCampaignTeam",
 ];
@@ -272,6 +285,9 @@ function buildEvent(kind, object, a, index) {
     case "expert":
     case "lighthouse":
       return { eventCode: "expert_actual_use", timestamp: now, id: object.id, name: object.meta?.name || object.id, expertTitle: object.meta?.name || object.id, type: "send_message", characterCount: 12, expertType: object.meta?.expertType || "agent", conversationId: cid, requestId: rid, userId: uid };
+    case "expertexp":
+      // 体验某专家：name 用昵称、expertTitle 用职业名（服务端两个都校验）
+      return { eventCode: "expert_actual_use", timestamp: now, id: object.id, name: object.meta?.name || object.id, expertTitle: object.meta?.title || object.meta?.name || object.id, type: "send_message", characterCount: 12, expertType: "agent", conversationId: cid, requestId: rid, userId: uid };
     case "team":
       return { eventCode: "expert_actual_use", timestamp: now, id: object.id, name: object.meta?.name || object.id, expertTitle: object.meta?.name || object.id, type: "send_message", characterCount: 12, expertType: "team", conversationId: cid, requestId: rid, userId: uid };
     case "skill":
@@ -336,6 +352,12 @@ async function reportRegular(a, event) {
   return billCall(a, "POST", "/v2/report", [event]);
 }
 const reportMpEvent = reportRegular;
+// 桌面口径上报（template 链）：多带 X-Requested-With，与 5.9.3 真机一致。
+const reportDesktopTemplateEvents = (a, events) =>
+  growthRequest(a, "POST", `${CHAT_BASE}/v2/report`, events, {
+    ...desktopHeaders(a),
+    "X-Requested-With": "XMLHttpRequest",
+  });
 async function reportWebLibrary(a) {
   const event = { eventCode: "web_element_click", timestamp: Date.now(), reportDelay: 0, pageURL: LIBRARY_DOC_URL, elementId: "library_doc_intro_click", elementName: "WorkBuddy资料库介绍", os: "Win32", arch: "", osVersion: "10.0", userAgent: WEB_UA, machineId: deriveId("webmachine", a.uid), userId: a.uid, userNickname: a.nick || "" };
   return webCall(a, "POST", "/v2/report", [event], webEventHeaders(LIBRARY_DOC_URL));
@@ -401,6 +423,37 @@ async function lightUp(a, code, kind, objects, need) {
     }
     return null;
   }
+  if (kind === "template_desktop") {
+    // 桌面口径：chat 6 连 + agent_task_created_with_template + template_used。
+    // 上游原实现按小程序指纹（mp:true）发 template_use，平台不认，进度恒 0/5。
+    const list = objects && objects.length ? objects : TEMPLATES.map(([id, name]) => ({ id, meta: { name } }));
+    const count = Math.min(list.length, Math.max(need, 1));
+    for (let i = 0; i < count; i++) {
+      const t = list[i];
+      const now = Date.now();
+      const conv = `wb-run-tpl-${now}-${i}`;
+      const req = `wb-run-tpl-req-${now}-${i}`;
+      const msg = `msg-${t.id}`;
+      // 国内版真机每个 report 事件都带 qimei36（国际版不带），与 5.9.3 抓包一致。
+      // 注意必须是 36 位十六进制（sha256 前 36 位），md5 的 32 位不合形。
+      const qimei36 = createHash("sha256").update(`qimei:${a.uid}`).digest("hex").slice(0, 36);
+      const events = desktopChatSequence(a, conv, req, msg).map((e) => ({ ...e, qimei36 }));
+      events.push(
+        desktopFingerprint(a, {
+          timestamp: now, eventCode: "agent_task_created_with_template",
+          mode: "working", isCustomModel: false,
+          id: t.id, name: t.meta?.name || "", requestId: req, qimei36,
+        }),
+        desktopFingerprint(a, {
+          timestamp: now, eventCode: "template_used", template_id: t.id, task_mode: "working", qimei36,
+        }),
+      );
+      const r = await reportDesktopTemplateEvents(a, events);
+      if (!r.ok) return `template report HTTP ${r.status}`;
+      if (i < count - 1) await sleep(GROWTH_WRITE_GAP_MS);
+    }
+    return null;
+  }
   if (kind === "buddyfirst") return null;
   const count = (!objects || objects.length === 0) ? Math.max(need, 1) : Math.min(objects.length, Math.max(need, 1));
   for (let i = 0; i < count; i++) {
@@ -416,7 +469,7 @@ async function lightUp(a, code, kind, objects, need) {
 // {kind, target, needsObject, mp, unforgeable?, reason?}
 const SPECS = {
   create_canvas: { kind: "canvas", target: 1, needsObject: false },
-  template_5: { kind: "template", target: 5, needsObject: true, mp: true },
+  template_5: { kind: "template_desktop", target: 5, needsObject: true },
   expert_5: { kind: "expert", target: 5, needsObject: true, mp: false },
   Expert_team_use_3: { kind: "team", target: 3, needsObject: true },
   skill_1: { kind: "skill", target: 1, needsObject: true },
@@ -439,18 +492,26 @@ const SPECS = {
   Sequential_Tasks_5: { kind: "miniglmchat", target: 1, needsObject: false, mp: true },
   school_season: { kind: "schoolseason", target: 1, needsObject: false, mp: true },
   Expert_Philanthropy: { kind: "", target: 1, needsObject: false, unforgeable: true, reason: "真实捐款动作，不代做" },
+  // 「体验某专家」类（专家 id 来自任务 jump_url，见 EXPERIENCE_EXPERTS）
+  ...Object.fromEntries(Object.entries(EXPERIENCE_EXPERTS).map(([code, e]) => [
+    code, { kind: "expertexp", target: 1, needsObject: true, expertId: e.id, expertName: e.name, expertTitle: e.title },
+  ])),
 };
 const specOf = (code) => SPECS[code] || null;
 
-async function sliceFor(kind, a, need, offset) {
+async function sliceFor(spec, a, need, offset) {
+  const kind = typeof spec === "string" ? spec : spec.kind;
   const uniq = (arr) => [...new Map(arr.map((x) => [x.id, x])).values()];
   const skipTake = (arr) => uniq(arr).slice(offset).slice(0, need);
   switch (kind) {
+    case "expertexp":
+      return { objects: [{ id: spec.expertId, meta: { name: spec.expertName, title: spec.expertTitle } }], error: null };
     case "canvas": {
       const ms = Date.now();
       return { objects: Array.from({ length: need }, (_, i) => ({ id: `wbx-canvas-${ms + i}`, meta: {} })), error: null };
     }
     case "template": return fetchScenes(a).then((r) => ({ objects: skipTake(r), error: r.length ? null : "scenes 为空" })).catch((e) => ({ objects: skipTake(DEFAULT_SCENES.map(([id, name]) => ({ id, meta: { name } }))), error: null }));
+    case "template_desktop": return { objects: skipTake(TEMPLATES.map(([id, name]) => ({ id, meta: { name } }))), error: null };
     case "expert": return fetchMarketExperts(a, false, "").then((r) => ({ objects: skipTake(r.length ? r : DEFAULT_EXPERT_IDS.map((id) => ({ id, meta: {} }))), error: null }));
     case "miniexpert": return fetchMarketExperts(a, false, "").then((r) => ({ objects: skipTake(r), error: null }));
     case "team": return fetchMarketExperts(a, true, "").then((r) => ({ objects: skipTake(r.length ? r : DEFAULT_TEAM_IDS.map((id) => ({ id, meta: {} }))), error: null }));
@@ -461,7 +522,7 @@ async function sliceFor(kind, a, need, offset) {
     default: return { objects: [], error: null }; // 无载体类
   }
 }
-const idsFor = (kind, a, need, offset) => sliceFor(kind, a, need, offset);
+const idsFor = (spec, a, need, offset) => sliceFor(spec, a, need, offset);
 
 // fetch_*（spec.rs L214-374）
 async function fetchScenes(a) {
@@ -551,7 +612,7 @@ async function processTask(a, code, task, mp = false) {
   if (spec.kind === "cat") need = Math.min(need, 1);
   let objects = [];
   if (need > 0) {
-    const got = await idsFor(spec.kind, a, need, Math.max(cur, 0));
+    const got = await idsFor(spec, a, need, Math.max(cur, 0));
     if (got.error) return rep("skipped", "对象 id 获取失败");
     objects = got.objects;
     if (need > 0 && objects.length === 0 && spec.needsObject) return rep("skipped", "无可用对象 id");
